@@ -4,13 +4,16 @@ import pandas as analytics
 import numpy as maths
 import matplotlib.pyplot as graph
 import warnings
+from tqdm import tqdm
+import sys
 warnings.simplefilter("ignore")
 
 
 
 
 class linear_regression :
-    def __init__(self):
+    def __init__(self,names = []):
+        
         self.N = 0                   # Number of datapoints in the dataset
         self.n = 0                   # Number of attributes in the dataset
         self.maxima = []             # To store the maxima of each attribute of the training set
@@ -19,6 +22,7 @@ class linear_regression :
         self.plot_rmse = False       # To plot the RMSE graph or not
         self.plot_metrics = False    # To plot the metrics asked in the Assignment questions or not
         self.alpha = 0               # The optimal hyperparameter
+        self.names = ["bias"] + names
                                      #
     def help(self):
         "Help Function to give the details of the Class"
@@ -86,8 +90,8 @@ class linear_regression :
         # load_data( path )
         # monte_carlo( alphas , k , training_perc )
         # training_set , testing_set = split_data()
-        # train( training_set , sgd , plot_rmse , plot_metrics )
-        # test
+        # train( training_set , sgd = True , plot_rmse = False , plot_metrics = False )
+        # test( testing_set )
 
         """)
                             
@@ -290,7 +294,7 @@ class linear_regression :
         
         training_size = self.training_size
         
-        for i in range(k) :
+        for i in tqdm(range(k),colour = 'blue',file=sys.stdout) :
             df_value = {}
             df_data = df_data.sample(frac = 1)
             df_train = df_data[0:training_size]
@@ -298,19 +302,21 @@ class linear_regression :
             df_train = self.normalise_data(df_train)
             self.minima = []
             self.maxima = []
-            print("For iteration number ",i+1," : ")
+            # print("For Iteration ",i+1," : ")
             w, rmses = self.optimal_weight(df_train)
 
             for alpha in alphas :
                 rmse_value = maths.array(rmses[alpha]).mean()
                 df_value.update({alpha:rmse_value})
-                print("\tAverage RMSE for alpha : ",alpha," : " , rmse_value)
+                # print("\tAverage RMSE for alpha : ",round(alpha,3)," : " , round(rmse_value,3))
             iteration_counts.append(df_value)
-            print()
+            # print()
         df_monte_carlo = analytics.DataFrame(iteration_counts)
-        df_monte_carlo.plot(figsize=(40,20),title = "Number of Iterations vs Alpha")
+        df_monte_carlo.plot(figsize=(20,10),title = "Number of Iterations vs Alpha")
         alpha = (df_monte_carlo.iloc[:,:].mean()).idxmin()
-        print("Best Alpha is ", alpha)
+        print("================================")
+        print("Best Alpha is ", round(alpha,3))
+        print("================================")
         self.alpha = alpha
         
         return alpha
@@ -350,7 +356,7 @@ class linear_regression :
             scattered = axes.scatter3D(x1, x2, y)
 
 
-    def train(self, df_train, sgd = True, plot_rmse = True, plot_metrics = True ):
+    def train(self, df_train, sgd = True, plot_rmse = False, plot_metrics = False ):
         "Train the data for the chosen alpha, with an option to whether to use sgd , plot the rmse, question metrics etc."
 
         self.sgd = sgd
@@ -361,8 +367,16 @@ class linear_regression :
         
         w_star , self.train_rmses = self.optimal_weight(df_train)
         avg_rmse = maths.array(self.train_rmses[self.alpha]).mean()
-        print("Trained Parameters are : ",w_star)
-        print("Average training RSME for alpha = ",self.alpha," : ",avg_rmse)
+        print("Weights for the attributes are : ")
+
+        if self.names : names = self.names 
+        else: names = list(df_train.columns[:-2])
+
+        df_parameter = analytics.DataFrame(data = {'Attributes' : names, 'Weights' : [round(float(weight),3) for weight in w_star]})
+        print("===================")
+        print(df_parameter)
+        print("===================")
+        print("Average training RSME for alpha = ",round(self.alpha,3)," : ",round(avg_rmse,3))
         
         self.w_star = w_star            # Optimal Weight
 
@@ -370,18 +384,22 @@ class linear_regression :
     def test(self,df_test):
         "Predict the output through the learnt w_star and check its performance error"
 
+        
         df_test = self.normalise_data(df_test)
         df_test['y_hat'] = maths.matmul(df_test.iloc[:,:self.n],self.w_star)
         
         self.test_rmses = maths.array(self.rmse(df_test['y'],df_test['y_hat']))
-        print("Average testing RMSE for alpha = ",self.alpha," : ",self.test_rmses)
-
-        df_final = analytics.DataFrame()
-        df_final['y'] = df_test['y'].sort_values().reset_index(drop=True)
-        df_final['y_hat'] = df_test['y_hat'].sort_values().reset_index(drop=True)
-
-        df_final.plot(y=['y'],figsize=(20,10),c='b',title="Y")
-        df_final.plot(y=['y_hat'],figsize=(20,10),c='r',title="Y Predicted")
+        print("Average testing RMSE for alpha = ",round(self.alpha,3)," : ",round(float(self.test_rmses),3))
+        
+        figure = graph.figure(figsize = (20,10))
+        graph.scatter([i for i in range(len(df_test['y']))],df_test['y'],label = "Actual Data")
+        graph.scatter([i for i in range(len(df_test['y_hat']))],df_test['y_hat'],c= 'red', label = "Predicted Data")
+        graph.title("Actual vs Data")
+        graph.xlabel("No. of datapoints")
+        graph.ylabel("PRP Values")
+        graph.legend()
+        graph.show(block = True)
+        
 
         
     def split_data(self):
